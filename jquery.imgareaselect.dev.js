@@ -47,18 +47,28 @@ $.imgAreaSelect = function (img, options) {
         /* Has the image finished loading? */
         imgLoaded,
         
+        /* Unique id for multi select box class */
+        id = (new Date).getTime(),
+
+        /* Default options object used on initialization */
+        defaultOptions,
+        
         /* Plugin elements */
         
+        /* jQuery collection of all $box elements */
+        $boxes,
         /* Container box */
-        $box = div(),
+        $box,
+        /* Image Selection */
+        $imgSelect,
         /* Selection area */
-        $area = div(),
+        $area,
         /* Border (four divs) */
-        $border = div().add(div()).add(div()).add(div()),
-        /* Outer area (four divs) */
-        $outer = div().add(div()).add(div()).add(div()),
+        $border,
+        /* Overlay area */
+        $overlay = div(),
         /* Handles (empty by default, initialized in setOptions()) */
-        $handles = $([]),
+        $handles,
         
         /*
          * Additional element to work around a cursor problem in Opera
@@ -112,13 +122,273 @@ $.imgAreaSelect = function (img, options) {
         x1, y1, x2, y2,
         
         /* Current selection (relative to scaled image) */
-        selection = { x1: 0, y1: 0, x2: 0, y2: 0, width: 0, height: 0 },
+        selection,
         
         /* Document element */
         docElem = document.documentElement,
         
         /* Various helper variables used throughout the code */ 
         $p, d, i, o, w, h, adjusted;
+
+
+    /*
+     * Multi Select specific functions
+     */
+    
+    /**
+     * Initialise globals for new selection area
+     */
+    function initSelection() {
+        var imgSelect_css = {
+            border: 'none',
+            margin: 0,
+            padding: 0,
+            position: 'absolute',
+            opacity: options.activeOpacity||1
+        };
+        
+        /* Generate clone of img to be used as selection area image */
+        $imgSelect = $('<img />').attr('src', $img.attr('src'))
+            .css(imgSelect_css).width($img.width()).height($img.height());
+
+        /* Initialise all other selection variables */
+        $box = div();
+        $area = div();
+        $border = div().add(div()).add(div()).add(div());
+        $handles = $([]);
+        resize = '';
+        x1 = y1 = x2 = y2 = 0;
+        selection = { x1: 0, y1: 0, x2: 0, y2: 0, width: 0, height: 0 };
+
+        /*
+        * We initially set visibility to "hidden" as a workaround for a weird
+        * behaviour observed in Google Chrome 1.0.154.53 (on Windows XP). Normally
+        * we would just set display to "none", but, for some reason, if we do so
+        * then Chrome refuses to later display the element with .show() or
+        * .fadeIn().
+        */
+        $box.css({ visibility: 'hidden', position: position,
+            overflow: 'hidden', zIndex: zIndex || '0' });
+        $overlay.css({ position: position,
+            overflow: 'hidden', zIndex: zIndex || '0' });
+        $box.css({ zIndex: zIndex + 3 || 3 });
+        $area.add($border).css({ position: 'absolute', fontSize: 0 });
+        
+        /* Set flag to indicate active area */
+        $box.data('selection', {active: true});
+    }
+
+    /**
+     * Add new Selection area
+     *
+     * @param opts
+     *            options object for new area
+     */
+    function addSelection(opts) {
+        var activeSelection = false,
+            /* generate options object from options on plugin initialisation */
+            baseOpts = $.extend({show: true, enable: true}, defaultOptions);
+
+        /* Check if the current area is visible */
+        if(selection.width * selection.height) {
+            activeSelection = true;
+            
+            /* Save current area and deactivate */
+            saveSelection();
+            setSelectionState(false);
+            
+            /* Re-initialise selection variables */
+            initSelection();
+        }
+        
+        /* combine passed options with base options & set */
+        opts = opts ? $.extend(baseOpts, opts) : baseOpts;
+        setOptions(opts);
+
+        /* Remove passed selection area co-ordinates */
+        with(options) {
+            delete x1; delete y1; delete x2; delete y2;
+        }
+        
+        /* Save new selection area */
+        saveSelection();
+
+        /* Chrome display bug workaround */
+        $box.add($overlay).css({ visibility: '' });
+
+        /* Callback if new area has been added and not an API call */
+        if(activeSelection && !(this instanceof $.imgAreaSelect)) 
+            options.onSelectAdd(img, $boxes.index($box), getSelection());
+    }
+
+    /**
+     * Set active state of current selection area
+     *
+     * @param active
+     *            boolean state indicator
+     */
+    function setSelectionState(active) {
+        if(!$box) return;
+        
+        if(active) {
+            /*
+             * Activate selection area
+             */
+            $box.css('cursor', options.movable ? 'move' : 'pointer')
+                .addClass('active')
+                .data('selection').active = true;
+
+            $imgSelect.css('opacity', options.activeOpacity||1);
+        } else {
+            /* 
+             * Deactivate selection area
+             * Remove mousemove event leaving mousedown to detect area changes 
+             */ 
+            $box.unbind('mousemove', areaMouseMove)
+                .css('cursor', 'pointer')
+                .removeClass('active')
+                .data('selection').active = false;
+             
+            $imgSelect.css('opacity', options.inactiveOpacity||0.5);
+            
+            /* Detach handles from inactive selection */
+            $handles.detach();
+        }
+    }
+    
+    /**
+     * Save active selection
+     *
+     */
+    function saveSelection() {
+        
+        /* Get current active state */
+        var active = $box.data('selection').active;
+
+        if($box) {
+            /* Store area specific values & options on box element */
+            $box.data('selection' ,{
+                box: $box,
+                area: $area,
+                border: $border,
+                handles: $handles,
+                areaOpera: $areaOpera,
+                imgSelect: $imgSelect,
+                x1: x1, y1: y1, x2: x2, y2: y2,
+                selection: selection,
+                options: $.extend({}, options),
+                active: active
+            });
+        }
+    }
+
+    /**
+     * Process selection change 
+     * 
+     * @param newSelection
+     *            object of new selection area values & options
+     */
+    function swapSelection(newSelection) {
+
+        /* Get index of current selection */
+        var previous = $boxes.index($box);
+
+        /* Save & deactivate current selection when it is in use */
+        if(selection.width * selection.height) {
+            saveSelection();
+            setSelectionState(false);
+        } else {
+            /* Remove unused selection area */
+            $box.remove();
+        }
+
+        /* Reset globals with new selection data */
+        $box = newSelection.box;
+        $area = newSelection.area;
+        $border = newSelection.border;
+        $handles = newSelection.handles;
+        $areaOpera = newSelection.areaOpera;
+        $imgSelect = newSelection.imgSelect;
+        x1 = newSelection.x1; y1 = newSelection.y1;
+        x2 = newSelection.x2; y2 = newSelection.y2;
+        selection = newSelection.selection;
+        resize = '';
+
+        /* Reset plugin options with new selection area values */
+        setOptions($.extend({enable:true}, newSelection.options));
+
+        /* Update state of newly selected area */
+        setSelectionState(true);
+        
+        doUpdate();
+
+        /* If not an API call fire callback with previous & new area indexes  */
+        if(!(this instanceof $.imgAreaSelect))
+            options.onSelectSwap(img, $boxes.index($box), previous);
+    }
+    
+    /**
+     * Check for any visible selection areas
+     * 
+     * @return boolean
+     */
+    function visibleSelections() {
+        var visible = false;
+        $('div.' + options.classPrefix + '-box-'+id).each(function() {
+            var selection = $(this).data('selection').selection;
+            if(selection.width * selection.height) {
+                /* Visible selection found. Set flag and terminate */
+                visible = true;
+                return false;
+            }
+        });
+        return visible;
+    }
+    
+    /**
+     * Remove selection
+     * 
+     * @param index
+     *            0-based position of selection to remove
+     * @return boolean success
+     */
+    function removeSelection(index) {
+        var current = $boxes.index($box);
+
+        /* Set to current selection if index not passed */
+        index = index == null ? current : parseInt(index);
+
+        if($boxes.length > 1) {
+
+            /* Remove element when there are more than 1 selections */
+            if(current == index) 
+                /* Swap to another selection if removing current */
+                swapSelection($boxes.eq(index?index-1:1).data('selection'));
+
+            /* Remove the selection element */
+            $boxes.eq(index).remove();
+            
+            /* Update the boxes collection */
+            $boxes = $('div.' + options.classPrefix + '-box-'+id);
+
+            if(!(this instanceof $.imgAreaSelect))
+                options.onSelectRemove(img, index);
+
+        } else {
+
+            if(current == index) {
+                /* Hide instead or removing single selection */
+                hide($box);
+                $box.unbind('mousemove', areaMouseMove)
+                    .unbind('mousedown', areaMouseDown);
+                setSelection(0, 0, 0, 0);
+                
+                /* Remove overlay when there are no more visible selections */
+                if(!visibleSelections()) hide($overlay);
+            }
+        }
+    }
+
 
     /*
      * Translate selection coordinates (relative to scaled image) to viewport
@@ -210,13 +480,14 @@ $.imgAreaSelect = function (img, options) {
      */
     function getSelection(noScale) {
         var sx = noScale || scaleX, sy = noScale || scaleY;
-        
+        /* Added zIndex to Selection object */
         return { x1: round(selection.x1 * sx),
             y1: round(selection.y1 * sy),
             x2: round(selection.x2 * sx),
             y2: round(selection.y2 * sy),
             width: round(selection.x2 * sx) - round(selection.x1 * sx),
-            height: round(selection.y2 * sy) - round(selection.y1 * sy) };
+            height: round(selection.y2 * sy) - round(selection.y1 * sy),
+            zindex: parseInt($box.css('z-index'))-2 };
     }
     
     /**
@@ -246,6 +517,7 @@ $.imgAreaSelect = function (img, options) {
         
         selection.width = selection.x2 - selection.x1;
         selection.height = selection.y2 - selection.y1;
+        saveSelection();
     }
 
     /**
@@ -338,18 +610,14 @@ $.imgAreaSelect = function (img, options) {
             .width(max(w - $border.outerWidth() + $border.innerWidth(), 0))
             .height(max(h - $border.outerHeight() + $border.innerHeight(), 0));
 
-        /* Arrange the outer area elements */
-        $($outer[0]).css({ left: left, top: top,
-            width: selection.x1, height: imgHeight });
-        $($outer[1]).css({ left: left + selection.x1, top: top,
-            width: w, height: selection.y1 });
-        $($outer[2]).css({ left: left + selection.x2, top: top,
-            width: imgWidth - selection.x2, height: imgHeight });
-        $($outer[3]).css({ left: left + selection.x1, top: top + selection.y2,
-            width: w, height: imgHeight - selection.y2 });
-        
+        /* Position the overlay element */
+        $overlay.css({ left: left, top: top,
+            width: imgWidth, height: imgHeight });
         w -= $handles.outerWidth();
         h -= $handles.outerHeight();
+        
+        /* Position Selection Image */
+        $imgSelect.css({left: '-'+selection.x1+'px',top:'-'+selection.y1+'px'});
         
         /* Arrange handles */
         switch ($handles.length) {
@@ -476,17 +744,19 @@ $.imgAreaSelect = function (img, options) {
     function docMouseUp(event) {
         /* Set back the default cursor */
         $('body').css('cursor', '');
+
+        saveSelection();
         /*
-         * If autoHide is enabled, or if the selection has zero width/height,
-         * hide the selection and the outer area
+         * If autoHide is enabled, or there are no visible selections,
+         * hide the selection and the overlay area
          */
-        if (options.autoHide || selection.width * selection.height == 0)
-            hide($box.add($outer), function () { $(this).hide(); });
+        if (options.autoHide || !visibleSelections())
+            hide($box.add($overlay), function () { $(this).hide(); });
 
         $(document).unbind('mousemove', selectingMouseMove);
         $box.mousemove(areaMouseMove);
         
-        options.onSelectEnd(img, getSelection());
+        options.onSelectEnd(img, $boxes.index($box), getSelection());
     }
 
     /**
@@ -498,6 +768,10 @@ $.imgAreaSelect = function (img, options) {
      */
     function areaMouseDown(event) {
         if (event.which != 1) return false;
+        
+        /* Switch selection areas if the this is not active */
+        if(!$(this).data('selection').active)
+            swapSelection($(this).data('selection'));
 
         adjust();
 
@@ -520,14 +794,14 @@ $.imgAreaSelect = function (img, options) {
 
             $(document).mousemove(movingMouseMove)
                 .one('mouseup', function () {
-                    options.onSelectEnd(img, getSelection());
+                    options.onSelectEnd(img, $boxes.index($box), getSelection());
 
                     $(document).unbind('mousemove', movingMouseMove);
                     $box.mousemove(areaMouseMove);
                 });
         }
         else
-            $img.mousedown(event);
+            if(!options.autoAdd) $img.mousedown(event);
 
         return false;
     }
@@ -613,7 +887,7 @@ $.imgAreaSelect = function (img, options) {
 
         update();
 
-        options.onSelectChange(img, getSelection());
+        options.onSelectChange(img, $boxes.index($box), getSelection());
     }
 
     /**
@@ -649,7 +923,7 @@ $.imgAreaSelect = function (img, options) {
 
         update();
 
-        options.onSelectChange(img, getSelection());
+        options.onSelectChange(img, $boxes.index($box), getSelection());
     }
 
     /**
@@ -682,9 +956,9 @@ $.imgAreaSelect = function (img, options) {
 
         resize = '';
 
-        if (!$outer.is(':visible'))
+        if (!$box.is(':visible'))
             /* Show the plugin elements */
-            $box.add($outer).hide().fadeIn(options.fadeSpeed||0);
+            $box.add($overlay).hide().fadeIn(options.fadeSpeed||0);
 
         shown = true;
 
@@ -701,14 +975,16 @@ $.imgAreaSelect = function (img, options) {
     function cancelSelection() {
         $(document).unbind('mousemove', startSelection)
             .unbind('mouseup', cancelSelection);
-        hide($box.add($outer));
+        hide($box);
         
         setSelection(selX(x1), selY(y1), selX(x1), selY(y1));
+
+        if(!visibleSelections()) hide($overlay);
         
         /* If this is an API call, callback functions should not be triggered */
         if (!(this instanceof $.imgAreaSelect)) {
-            options.onSelectChange(img, getSelection());
-            options.onSelectEnd(img, getSelection());
+            options.onSelectChange(img, $boxes.index($box), getSelection());
+            options.onSelectEnd(img, $boxes.index($box), getSelection());
         }
     }
 
@@ -721,7 +997,10 @@ $.imgAreaSelect = function (img, options) {
      */
     function imgMouseDown(event) {
         /* Ignore the event if animation is in progress */
-        if (event.which != 1 || $outer.is(':animated')) return false;
+        if (event.which != 1 || $overlay.is(':animated')) return false;
+
+        if(options.autoAdd)
+            addSelection();
 
         adjust();
         startX = x1 = evX(event);
@@ -747,6 +1026,9 @@ $.imgAreaSelect = function (img, options) {
     function imgLoad() {
         imgLoaded = true;
 
+        /* Initialise Selection variables */
+        initSelection();
+
         /* Set options */
         setOptions(options = $.extend({
             classPrefix: 'imgareaselect',
@@ -757,16 +1039,28 @@ $.imgAreaSelect = function (img, options) {
             onInit: function () {},
             onSelectStart: function () {},
             onSelectChange: function () {},
-            onSelectEnd: function () {}
+            onSelectEnd: function () {},
+            onSelectSwap: function() {},
+            onSelectAdd: function() {},
+            onSelectRemove: function() {}
         }, options));
 
-        $box.add($outer).css({ visibility: '' });
+        /* Take a copy of initialisation options */
+        defaultOptions = $.extend({}, options);
+
+        /* Remove callbacks and positioning data */
+        for(var option in defaultOptions) {
+            if(/^x\d$|^y\d$|^onSelect.*$|^onInit$/.test(option))
+                delete defaultOptions[option];
+        }
+
+        $box.add($overlay).css({ visibility: '' });
         
         if (options.show) {
             shown = true;
             adjust();
             update();
-            $box.add($outer).hide().fadeIn(options.fadeSpeed||0);
+            $box.add($overlay).hide().fadeIn(options.fadeSpeed||0);
         }
 
         /*
@@ -792,6 +1086,12 @@ $.imgAreaSelect = function (img, options) {
             !isNaN(k.shift) && event.shiftKey ? k.shift :
             !isNaN(k.arrows) ? k.arrows : 10;
 
+        /* Removes current selection using delete key when enabled */
+        if(key == 46 && options.keyDelete) {
+            removeSelection();
+            return false;
+        }
+        
         if (k.arrows == 'resize' || (k.shift == 'resize' && event.shiftKey) ||
             (k.ctrl == 'resize' && event.ctrlKey) ||
             (k.alt == 'resize' && (event.altKey || event.originalEvent.altKey)))
@@ -878,9 +1178,10 @@ $.imgAreaSelect = function (img, options) {
      *            The new options object
      */
     function setOptions(newOptions) {
-        if (newOptions.parent)
-            ($parent = $(newOptions.parent)).append($box.add($outer));
-        
+        var boxVisible = $box.is(':visible');
+        if (newOptions.parent && !boxVisible)
+            ($parent = $(newOptions.parent)).append($box.add($overlay));
+
         /* Merge the new options with the existing ones */
         $.extend(options, newOptions);
 
@@ -944,67 +1245,78 @@ $.imgAreaSelect = function (img, options) {
                 newOptions.keys);
 
         /* Add classes to plugin elements */
-        $outer.addClass(options.classPrefix + '-outer');
+        $box.addClass(options.classPrefix + '-box-' + id);
+        $overlay.addClass(options.classPrefix + '-outer');
         $area.addClass(options.classPrefix + '-selection');
         for (i = 0; i++ < 4;)
-            $($border[i-1]).addClass(options.classPrefix + '-border' + i);
+          $($border[i-1]).addClass(options.classPrefix + '-border' + i);
 
         /* Apply style options */
         styleOptions($area, { selectionColor: 'background-color',
-            selectionOpacity: 'opacity' });
+          selectionOpacity: 'opacity' });
         styleOptions($border, { borderOpacity: 'opacity',
-            borderWidth: 'border-width' });
-        styleOptions($outer, { outerColor: 'background-color',
-            outerOpacity: 'opacity' });
+          borderWidth: 'border-width' });
+        styleOptions($overlay, { outerColor: 'background-color',
+          outerOpacity: 'opacity' });
         if (o = options.borderColor1)
-            $($border[0]).css({ borderStyle: 'solid', borderColor: o });
+          $($border[0]).css({ borderStyle: 'solid', borderColor: o });
         if (o = options.borderColor2)
-            $($border[1]).css({ borderStyle: 'dashed', borderColor: o });
+          $($border[1]).css({ borderStyle: 'dashed', borderColor: o });
+
 
         /* Append all the selection area elements to the container box */
-        $box.append($area.add($border).add($areaOpera).add($handles));
+        $box.append($area.add($imgSelect).add($border).add($areaOpera)
+            .add($handles));
 
         if ($.browser.msie) {
-            if (o = $outer.css('filter').match(/opacity=(\d+)/))
-                $outer.css('opacity', o[1]/100);
-            if (o = $border.css('filter').match(/opacity=(\d+)/))
-                $border.css('opacity', o[1]/100);
+          if (o = $overlay.css('filter').match(/opacity=(\d+)/))
+              $overlay.css('opacity', o[1]/100);
+          if (o = $border.css('filter').match(/opacity=(\d+)/))
+              $border.css('opacity', o[1]/100);
         }
         
         if (newOptions.hide)
-            hide($box.add($outer));
+            hide($box.add($overlay));
         else if (newOptions.show && imgLoaded) {
             shown = true;
-            $box.add($outer).fadeIn(options.fadeSpeed||0);
+            $box.add($overlay).fadeIn(options.fadeSpeed||0);
             doUpdate();
         }
 
         /* Calculate the aspect ratio factor */
         aspectRatio = (d = (options.aspectRatio || '').split(/:/))[0] / d[1];
 
-        $img.add($outer).unbind('mousedown', imgMouseDown);
+        $img.add($overlay).unbind('mousedown', imgMouseDown);
         
         if (options.disable || options.enable === false) {
             /* Disable the plugin */
-            $box.unbind('mousemove', areaMouseMove).unbind('mousedown', areaMouseDown);
+            $box.unbind('mousemove', areaMouseMove)
+                .unbind('mousedown', areaMouseDown);
             $(window).unbind('resize', windowResize);
         }
         else {
             if (options.enable || options.disable === false) {
                 /* Enable the plugin */
-                if (options.resizable || options.movable)
-                    $box.mousemove(areaMouseMove).mousedown(areaMouseDown);
+                $box.unbind('mousedown', areaMouseDown)
+                    .mousedown(areaMouseDown);
+                if (options.resizable || options.movable) 
+                    $box.unbind('mousemove', areaMouseMove)
+                        .mousemove(areaMouseMove);
     
                 $(window).resize(windowResize);
             }
 
             if (!options.persistent)
-                $img.add($outer).mousedown(imgMouseDown);
+                $img.add($overlay).css({ cursor: 'crosshair' })
+                    .mousedown(imgMouseDown);
         }
+
+        /* Initialize $boxes collection */
+        $boxes = $('div.' + options.classPrefix + '-box-' + id);
         
         options.enable = options.disable = undefined;
     }
-    
+
     /**
      * Remove plugin completely
      */
@@ -1013,7 +1325,7 @@ $.imgAreaSelect = function (img, options) {
          * Call setOptions with { disable: true } to unbind the event handlers
          */
         setOptions({ disable: true });
-        $box.add($outer).remove();
+        $box.add($overlay).remove();
     };
     
     /*
@@ -1075,6 +1387,94 @@ $.imgAreaSelect = function (img, options) {
      *            event handler is not activated
      */
     this.update = doUpdate;
+    
+    
+    /*
+     * Multi Selection API methods
+     *
+     */
+     
+    /**
+     * Add selection area
+     * 
+     * @param newOptions
+     *            The new options object for the selection
+     */
+    this.addSelection = addSelection;
+    
+    /**
+     * Remove selection area
+     * 
+     * @param index
+     *            0-based position of selection to remove
+     *            When not passed the current selection is removed
+     *
+     */
+    this.removeSelection = removeSelection
+
+    /**
+     * Initiate selection area change
+     * 
+     * @param index
+     *            0-based position of selection to activate
+     * @return boolean success
+     */
+    this.activateSelection = function (index) {
+        i = parseInt(index);
+        
+        if(isNaN(index) || index < 0 || index >= $boxes.length) 
+            return false;
+        
+        swapSelection.call(this, $boxes.eq(i).data('selection'));
+        return true;
+    };
+
+    /**
+     * Get all selection areas
+     * 
+     * @param noScale
+     *            If set to <code>true</code>, scaling is not applied to the
+     *            returned selection
+     * @return array of Selection objects
+     */
+    this.getSelections = function (noScale) {
+        var sx = noScale || scaleX, sy = noScale || scaleY;
+
+        /* Save current selection */
+        saveSelection();
+        
+        /* Return array of Selection objects from current boxes collection */
+        return $boxes.map(
+            function() { 
+                var selection = $(this).data('selection').selection;
+                return { x1: round(selection.x1 * sx),
+                    y1: round(selection.y1 * sy),
+                    x2: round(selection.x2 * sx),
+                    y2: round(selection.y2 * sy),
+                    width: round(selection.x2 * sx) - round(selection.x1 * sx),
+                    height: round(selection.y2 * sy) - round(selection.y1 * sy),
+                    zindex: parseInt($box.css('z-index'))-2 };
+            }).get();
+    };
+
+    /**
+     * Move current selection to front by incrementing zIndex
+     * 
+     */
+    this.moveToFront = function(){
+        $box.css('z-index', parseInt($box.css('z-index')) + 1);
+    }
+    
+    /**
+     * Move current selection to back by decrementing zIndex
+     * 
+     */
+    this.moveToBack = function() {
+        var z = parseInt($box.css('z-index'));
+        
+        /* zIndex cannot fall below calculated zIndex global +2 */
+        $box.css('z-index', --z < zIndex+2 ? zIndex+2 : z);
+    }
 
     /* 
      * Traverse the image's parent elements (up to <body>) and find the
@@ -1119,18 +1519,6 @@ $.imgAreaSelect = function (img, options) {
             position: 'absolute', zIndex: zIndex + 2 || 2 });
 
     /*
-     * We initially set visibility to "hidden" as a workaround for a weird
-     * behaviour observed in Google Chrome 1.0.154.53 (on Windows XP). Normally
-     * we would just set display to "none", but, for some reason, if we do so
-     * then Chrome refuses to later display the element with .show() or
-     * .fadeIn().
-     */
-    $box.add($outer).css({ visibility: 'hidden', position: position,
-        overflow: 'hidden', zIndex: zIndex || '0' });
-    $box.css({ zIndex: zIndex + 2 || 2 });
-    $area.add($border).css({ position: 'absolute', fontSize: 0 });
-    
-    /*
      * If the image has been fully loaded, or if it is not really an image (eg.
      * a div), call imgLoad() immediately; otherwise, bind it to be called once
      * on image load event.
@@ -1172,7 +1560,7 @@ $.fn.imgAreaSelect = function (options) {
                 $(this).data('imgAreaSelect').setOptions(options);
         }
         else if (!options.remove) {
-            /* No exising instance -- create a new one */
+            /* No existing instance -- create a new one */
             
             /*
              * If neither the "enable" nor the "disable" option is present, add
