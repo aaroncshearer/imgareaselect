@@ -1036,6 +1036,11 @@ $.imgAreaSelect = function (img, options) {
             parent: 'body',
             resizable: true,
             resizeMargin: 10,
+            aspectRatio: '',
+            maxHeight: 0,
+            maxWidth: 0,
+            minHeight: 0
+            minWidth: 0,
             onInit: function () {},
             onSelectStart: function () {},
             onSelectChange: function () {},
