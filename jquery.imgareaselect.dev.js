@@ -1325,7 +1325,7 @@ $.imgAreaSelect = function (img, options) {
          * Call setOptions with { disable: true } to unbind the event handlers
          */
         setOptions({ disable: true });
-        $box.add($overlay).remove();
+        $boxes.add($overlay).remove();
     };
     
     /*
