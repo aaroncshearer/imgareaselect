@@ -612,6 +612,11 @@ $.imgAreaSelect = function (img, options) {
                     .add(s.area)
                     .width(w = s.selection.width)
                     .height(h = s.selection.height);
+
+                /* Update the image selection viewport */
+                s.imgSelect.css(
+                    {left: '-'+s.selection.x1+'px',top:'-'+s.selection.y1+'px'}
+                );
             }
         });
 
