@@ -199,6 +199,9 @@ $.imgAreaSelect = function (img, options) {
             
             /* Re-initialise selection variables */
             initSelection();
+        } else {
+            /* Ensure new selection is enabled */
+            setSelectionState(true);
         }
         
         /* combine passed options with base options & set */
@@ -217,8 +220,12 @@ $.imgAreaSelect = function (img, options) {
         $box.add($overlay).css({ visibility: '' });
 
         /* Callback if new area has been added and not an API call */
-        if(activeSelection && !(this instanceof $.imgAreaSelect)) 
+        if(activeSelection && !(this instanceof $.imgAreaSelect)) {
             options.onSelectAdd(img, $boxes.index($box), getSelection());
+        } else {
+            /* Return new selection on API call only */
+            return $box;
+        }
     }
 
     /**
