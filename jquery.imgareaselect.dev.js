@@ -1331,9 +1331,6 @@ $.imgAreaSelect = function (img, options) {
                     .mousedown(imgMouseDown);
         }
 
-        /* Initialize $boxes collection */
-        $boxes = $('div.' + options.classPrefix + '-box-' + id);
-        
         options.enable = options.disable = undefined;
     }
 
@@ -1347,18 +1344,18 @@ $.imgAreaSelect = function (img, options) {
         setOptions({ disable: true });
         $boxes.add($overlay).remove();
     };
-    
+
     /*
      * Public API
      */
-    
+
     /**
      * Get current options
      * 
      * @return An object containing the set of options currently in use
      */
     this.getOptions = function () { return options; };
-    
+
     /**
      * Set plugin options
      * 
@@ -1366,7 +1363,7 @@ $.imgAreaSelect = function (img, options) {
      *            The new options object
      */
     this.setOptions = setOptions;
-    
+
     /**
      * Get the current selection
      * 
@@ -1376,7 +1373,7 @@ $.imgAreaSelect = function (img, options) {
      * @return Selection object
      */
     this.getSelection = getSelection;
-    
+
     /**
      * Set the current selection
      * 
