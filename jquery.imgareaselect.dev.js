@@ -234,10 +234,10 @@ $.imgAreaSelect = function (img, options) {
      * @param active
      *            boolean state indicator
      */
-    function setSelectionState(active) {
-        if(!$box) return;
+    function setSelectionState(state) {
+        if(!$box || $box.data('selection').active === state) return;
         
-        if(active) {
+        if(state) {
             /*
              * Activate selection area
              */
