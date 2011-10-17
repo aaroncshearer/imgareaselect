@@ -600,15 +600,27 @@ $.imgAreaSelect = function (img, options) {
         if (!shown) return;
 
         /*
-         * Set position and size of each container box and selection area
-         * inside it
+         * Set position and size of each inactive container box and selection
+         * area inside it
          */
         $boxes.each(function(index) {
             var s = $(this).data('selection');
-            s.box.css({ left: viewX(s.selection.x1), top: viewY(s.selection.y1) })
-                .add(s.area)
-                .width(w = s.selection.width).height(h = s.selection.height);
+            if(s && !s.active) {
+                s.box.css({
+                        left: viewX(s.selection.x1),
+                        top: viewY(s.selection.y1) })
+                    .add(s.area)
+                    .width(w = s.selection.width)
+                    .height(h = s.selection.height);
+            }
         });
+
+        /*
+         * Update position and size of current container box and selection
+         * area inside it
+         */
+        $box.css({ left: viewX(selection.x1), top: viewY(selection.y1) })
+            .add($area).width(w = selection.width).height(h = selection.height);
 
         /*
          * Reset the position of selection area, borders, and handles (IE6/IE7
