@@ -1450,6 +1450,14 @@ $.imgAreaSelect = function (img, options) {
     };
 
     /**
+     * De-activate the current selection
+     * 
+     */
+    this.deactivateSelection = function () {
+        setSelectionState(false);
+    };
+
+    /**
      * Get all selection areas
      * 
      * @param noScale
@@ -1481,10 +1489,10 @@ $.imgAreaSelect = function (img, options) {
      * Move current selection to front by incrementing zIndex
      * 
      */
-    this.moveToFront = function(){
+    this.moveToFront = function() {
         $box.css('z-index', parseInt($box.css('z-index')) + 1);
-    }
-    
+    };
+
     /**
      * Move current selection to back by decrementing zIndex
      * 
@@ -1494,7 +1502,7 @@ $.imgAreaSelect = function (img, options) {
         
         /* zIndex cannot fall below calculated zIndex global +2 */
         $box.css('z-index', --z < zIndex+2 ? zIndex+2 : z);
-    }
+    };
 
     /* 
      * Traverse the image's parent elements (up to <body>) and find the
