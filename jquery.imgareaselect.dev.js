@@ -1309,9 +1309,10 @@ $.imgAreaSelect = function (img, options) {
         
         if (options.disable || options.enable === false) {
             /* Disable the plugin */
-            $box.unbind('mousemove', areaMouseMove)
+            $boxes.unbind('mousemove', areaMouseMove)
                 .unbind('mousedown', areaMouseDown);
             $(window).unbind('resize', windowResize);
+            $img.css({ cursor: '' });
         }
         else {
             if (options.enable || options.disable === false) {
