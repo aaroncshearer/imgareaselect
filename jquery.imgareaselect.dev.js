@@ -600,11 +600,15 @@ $.imgAreaSelect = function (img, options) {
         if (!shown) return;
 
         /*
-         * Set the position and size of the container box and the selection area
+         * Set position and size of each container box and selection area
          * inside it
          */
-        $box.css({ left: viewX(selection.x1), top: viewY(selection.y1) })
-            .add($area).width(w = selection.width).height(h = selection.height);
+        $boxes.each(function(index) {
+            var s = $(this).data('selection');
+            s.box.css({ left: viewX(s.selection.x1), top: viewY(s.selection.y1) })
+                .add(s.area)
+                .width(w = s.selection.width).height(h = s.selection.height);
+        });
 
         /*
          * Reset the position of selection area, borders, and handles (IE6/IE7
@@ -1279,6 +1283,9 @@ $.imgAreaSelect = function (img, options) {
         /* Append all the selection area elements to the container box */
         $box.append($area.add($imgSelect).add($border).add($areaOpera)
             .add($handles));
+        
+        /* Set $boxes collection */
+        $boxes = $('div.' + options.classPrefix + '-box-' + id);
 
         if ($.browser.msie) {
           if (o = $overlay.css('filter').match(/opacity=(\d+)/))
