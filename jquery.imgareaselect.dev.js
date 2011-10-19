@@ -175,7 +175,8 @@ $.imgAreaSelect = function (img, options) {
         $area.add($border).css({ position: 'absolute', fontSize: 0 });
         
         /* Set flag to indicate active area */
-        $box.data('selection', {active: true});
+        $box.addClass(options.classPrefix + '-box-active')
+            .data('selection', {active: true});
     }
 
     /**
@@ -203,7 +204,7 @@ $.imgAreaSelect = function (img, options) {
             /* Ensure new selection is enabled */
             setSelectionState(true);
         }
-        
+
         /* combine passed options with base options & set */
         opts = opts ? $.extend(baseOpts, opts) : baseOpts;
         setOptions(opts);
@@ -236,13 +237,13 @@ $.imgAreaSelect = function (img, options) {
      */
     function setSelectionState(state) {
         if(!$box || $box.data('selection').active === state) return;
-        
+
         if(state) {
             /*
              * Activate selection area
              */
             $box.css('cursor', options.movable ? 'move' : 'pointer')
-                .addClass('active')
+                .addClass(options.classPrefix + '-box-active')
                 .data('selection').active = true;
 
             $imgSelect.css('opacity', options.activeOpacity||1);
@@ -253,7 +254,7 @@ $.imgAreaSelect = function (img, options) {
              */ 
             $box.unbind('mousemove', areaMouseMove)
                 .css('cursor', 'pointer')
-                .removeClass('active')
+                .removeClass(options.classPrefix + '-box-active')
                 .data('selection').active = false;
              
             $imgSelect.css('opacity', options.inactiveOpacity||0.5);
@@ -331,7 +332,7 @@ $.imgAreaSelect = function (img, options) {
 
         /* If not an API call fire callback with previous & new area indexes  */
         if(!(this instanceof $.imgAreaSelect))
-            options.onSelectSwap(img, $boxes.index($box), previous);
+            options.onSelectSwap(img, $boxes.index($box), getSelection(), previous);
     }
     
     /**
@@ -494,7 +495,8 @@ $.imgAreaSelect = function (img, options) {
             y2: round(selection.y2 * sy),
             width: round(selection.x2 * sx) - round(selection.x1 * sx),
             height: round(selection.y2 * sy) - round(selection.y1 * sy),
-            zindex: parseInt($box.css('z-index'))-2 };
+            zindex: parseInt($box.css('z-index'))-2,
+            box: $box };
     }
     
     /**
@@ -1458,7 +1460,7 @@ $.imgAreaSelect = function (img, options) {
         
         if(isNaN(index) || index < 0 || index >= $boxes.length) 
             return false;
-        
+
         swapSelection.call(this, $boxes.eq(i).data('selection'));
         return true;
     };
@@ -1488,14 +1490,16 @@ $.imgAreaSelect = function (img, options) {
         /* Return array of Selection objects from current boxes collection */
         return $boxes.map(
             function() { 
-                var selection = $(this).data('selection').selection;
+                var $el = $(this),
+                    selection = $el.data('selection').selection;
                 return { x1: round(selection.x1 * sx),
                     y1: round(selection.y1 * sy),
                     x2: round(selection.x2 * sx),
                     y2: round(selection.y2 * sy),
                     width: round(selection.x2 * sx) - round(selection.x1 * sx),
                     height: round(selection.y2 * sy) - round(selection.y1 * sy),
-                    zindex: parseInt($box.css('z-index'))-2 };
+                    zindex: parseInt($box.css('z-index'))-2,
+                    box: $el };
             }).get();
     };
 
