@@ -222,7 +222,7 @@ $.imgAreaSelect = function (img, options) {
 
         /* Callback if new area has been added and not an API call */
         if(activeSelection && !(this instanceof $.imgAreaSelect)) {
-            options.onSelectAdd(img, $boxes.index($box), getSelection());
+            options.onSelectAdd(img, getSelection());
         } else {
             /* Return new selection on API call only */
             return $box;
@@ -269,10 +269,9 @@ $.imgAreaSelect = function (img, options) {
      *
      */
     function saveSelection() {
-        
+
         /* Get current active state */
         var active = $box.data('selection').active;
-
         if($box) {
             /* Store area specific values & options on box element */
             $box.data('selection' ,{
@@ -332,7 +331,7 @@ $.imgAreaSelect = function (img, options) {
 
         /* If not an API call fire callback with previous & new area indexes  */
         if(!(this instanceof $.imgAreaSelect))
-            options.onSelectSwap(img, $boxes.index($box), getSelection(), previous);
+            options.onSelectSwap(img, getSelection(), previous);
     }
     
     /**
@@ -496,7 +495,8 @@ $.imgAreaSelect = function (img, options) {
             width: round(selection.x2 * sx) - round(selection.x1 * sx),
             height: round(selection.y2 * sy) - round(selection.y1 * sy),
             zindex: parseInt($box.css('z-index'))-2,
-            box: $box };
+            box: $box,
+            index: $boxes.index($box) };
     }
     
     /**
@@ -516,7 +516,7 @@ $.imgAreaSelect = function (img, options) {
      */
     function setSelection(x1, y1, x2, y2, noScale) {
         var sx = noScale || scaleX, sy = noScale || scaleY;
-        
+
         selection = {
             x1: round(x1 / sx || 0),
             y1: round(y1 / sy || 0),
@@ -612,8 +612,8 @@ $.imgAreaSelect = function (img, options) {
                         left: viewX(s.selection.x1),
                         top: viewY(s.selection.y1) })
                     .add(s.area)
-                    .width(w = s.selection.width)
-                    .height(h = s.selection.height);
+                    .width(s.selection.width)
+                    .height(s.selection.height);
 
                 /* Update the image selection viewport */
                 s.imgSelect.css(
@@ -786,7 +786,7 @@ $.imgAreaSelect = function (img, options) {
         $(document).unbind('mousemove', selectingMouseMove);
         $box.mousemove(areaMouseMove);
         
-        options.onSelectEnd(img, $boxes.index($box), getSelection());
+        options.onSelectEnd(img, getSelection());
     }
 
     /**
@@ -824,7 +824,7 @@ $.imgAreaSelect = function (img, options) {
 
             $(document).mousemove(movingMouseMove)
                 .one('mouseup', function () {
-                    options.onSelectEnd(img, $boxes.index($box), getSelection());
+                    options.onSelectEnd(img, getSelection());
 
                     $(document).unbind('mousemove', movingMouseMove);
                     $box.mousemove(areaMouseMove);
@@ -917,7 +917,7 @@ $.imgAreaSelect = function (img, options) {
 
         update();
 
-        options.onSelectChange(img, $boxes.index($box), getSelection());
+        options.onSelectChange(img, getSelection());
     }
 
     /**
@@ -953,7 +953,7 @@ $.imgAreaSelect = function (img, options) {
 
         update();
 
-        options.onSelectChange(img, $boxes.index($box), getSelection());
+        options.onSelectChange(img, getSelection());
     }
 
     /**
@@ -1013,8 +1013,8 @@ $.imgAreaSelect = function (img, options) {
         
         /* If this is an API call, callback functions should not be triggered */
         if (!(this instanceof $.imgAreaSelect)) {
-            options.onSelectChange(img, $boxes.index($box), getSelection());
-            options.onSelectEnd(img, $boxes.index($box), getSelection());
+            options.onSelectChange(img, getSelection());
+            options.onSelectEnd(img, getSelection());
         }
     }
 
@@ -1056,11 +1056,7 @@ $.imgAreaSelect = function (img, options) {
     function imgLoad() {
         imgLoaded = true;
 
-        /* Initialise Selection variables */
-        initSelection();
-
-        /* Set options */
-        setOptions(options = $.extend({
+        options = $.extend({
             classPrefix: 'imgareaselect',
             movable: true,
             parent: 'body',
@@ -1078,7 +1074,13 @@ $.imgAreaSelect = function (img, options) {
             onSelectSwap: function() {},
             onSelectAdd: function() {},
             onSelectRemove: function() {}
-        }, options));
+        }, options)
+
+        /* Initialise Selection variables */
+        initSelection();
+
+        /* Set options */
+        setOptions(options);
 
         /* Take a copy of initialisation options */
         defaultOptions = $.extend({}, options);
@@ -1273,7 +1275,12 @@ $.imgAreaSelect = function (img, options) {
                 newOptions.y2);
             newOptions.show = !newOptions.hide;
         }
-
+        
+        /* Remove positioning data from options */
+        with(options) {
+            delete x1; delete y1; delete x2; delete y2;
+        }
+        
         if (newOptions.keys)
             /* Enable keyboard support */
             options.keys = $.extend({ shift: 1, ctrl: 'resize' },
@@ -1456,12 +1463,12 @@ $.imgAreaSelect = function (img, options) {
      * @return boolean success
      */
     this.activateSelection = function (index) {
-        i = parseInt(index);
+        index = parseInt(index);
         
-        if(isNaN(index) || index < 0 || index >= $boxes.length) 
+        if(isNaN(index) || index < 0 || index >= $boxes.length || $boxes.index($box) == index) 
             return false;
-
-        swapSelection.call(this, $boxes.eq(i).data('selection'));
+        
+        swapSelection.call(this, $boxes.eq(index).data('selection'));
         return true;
     };
 
@@ -1489,8 +1496,8 @@ $.imgAreaSelect = function (img, options) {
         
         /* Return array of Selection objects from current boxes collection */
         return $boxes.map(
-            function() { 
-                var $el = $(this),
+            function(index, domElement) { 
+                var $el = $(domElement),
                     selection = $el.data('selection').selection;
                 return { x1: round(selection.x1 * sx),
                     y1: round(selection.y1 * sy),
@@ -1499,7 +1506,8 @@ $.imgAreaSelect = function (img, options) {
                     width: round(selection.x2 * sx) - round(selection.x1 * sx),
                     height: round(selection.y2 * sy) - round(selection.y1 * sy),
                     zindex: parseInt($box.css('z-index'))-2,
-                    box: $el };
+                    box: $el,
+                    index: index };
             }).get();
     };
 
