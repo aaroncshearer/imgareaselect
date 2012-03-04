@@ -105,6 +105,10 @@ $.imgAreaSelect = function (img, options) {
         /* Aspect ratio to maintain (floating point number) */
         aspectRatio,
         
+	/* Min / Max ratios */
+	minRatio,
+	maxRatio,
+
         /* Are the plugin elements currently displayed? */
         shown,
         
@@ -569,6 +573,7 @@ $.imgAreaSelect = function (img, options) {
          */
         x1 = min(x1, left + imgWidth);
         y1 = min(y1, top + imgHeight);
+
         
         if (abs(x2 - x1) < minWidth) {
             /* Selection width is smaller than minWidth */
@@ -579,8 +584,21 @@ $.imgAreaSelect = function (img, options) {
             else if (x2 > left + imgWidth)
                 x1 = left + imgWidth - minWidth;
         }
-
-        if (abs(y2 - y1) < minHeight) {
+	
+	/*
+	 * If setted it uses maxRatio to calculate on the fly the maxHeight
+	*/
+	if(maxRatio){
+		maxHeight = abs(x2-x1) / maxRatio;
+	}
+	/*
+	 * If minRatio is setted it uses it to calculate on the fly the minHeight
+	*/
+	if(minRatio){
+		minHeight = abs(x2-x1) / minRatio;
+	}
+        
+	if (abs(y2 - y1) < minHeight) {
             /* Selection height is smaller than minHeight */
             y2 = y1 - minHeight * (y2 < y1 || -1);
 
@@ -594,12 +612,12 @@ $.imgAreaSelect = function (img, options) {
         y2 = max(top, min(y2, top + imgHeight));
         
         fixAspectRatio(abs(x2 - x1) < abs(y2 - y1) * aspectRatio);
-
         if (abs(x2 - x1) > maxWidth) {
             /* Selection width is greater than maxWidth */
             x2 = x1 - maxWidth * (x2 < x1 || -1);
             fixAspectRatio();
         }
+
 
         if (abs(y2 - y1) > maxHeight) {
             /* Selection height is greater than maxHeight */
@@ -981,6 +999,10 @@ $.imgAreaSelect = function (img, options) {
 
         /* Calculate the aspect ratio factor */
         aspectRatio = (d = (options.aspectRatio || '').split(/:/))[0] / d[1];
+	
+	/* Calculates the min and max ratio factor */
+        minRatio = (d = (options.minRatio || '').split(/:/))[0] / d[1];
+        maxRatio = (d = (options.maxRatio || '').split(/:/))[0] / d[1];
 
         $img.add($outer).unbind('mousedown', imgMouseDown);
         
